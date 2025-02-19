@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>水波模拟</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: auto;
+    }
+  </style>
+  <!--引入three.js三维引擎-->
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/build/three.js"></script>
+  <!-- <script src="..\OrbitControls.js"></script> -->
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+  <script type="text/javascript">
+    //全局变量，g表示global
+    let g_scene, g_camera, g_renderer, g_controls;
+    let g_geometry, g_material;
+    let g_CircleGeometry,g_CircleMaterial,g_CircleMesh;
+    let g_BoxGeometry,g_BoxMaterial,g_BoxMesh;
+
+    var toRad = Math.PI / 180;
+    var row=10, col=10;
+
+    var amplitude = 20;
+    var frequency = 0.5;
+    var phase = 1.0;
+    var time = 0;
+    var dir = new THREE.Vector2(1, 1);
+
+    //***************程序主逻辑********************
+    init();//初始化
+    loop();//循环开始
+
+
+    //循环运行update，render
+    function loop() {
+      requestAnimationFrame(loop);
+      update();
+      render();
+    }
+
+    function update() {
+        //物体随着XY轴旋转
+        wave(amplitude, frequency, phase, time, dir);
+        setWaveNormal();
+        time += 0.08;
+    }
+
+    //渲染
+    function render() {
+      g_renderer.render(g_scene, g_camera);
+    }
+    
+    //将需要初始化的放在该方法中统一初始化
+    function init() {
+      initScene();//初始化场景   
+      initCamera();//初始化相机
+      initRenender();//初始化渲染器
+      initLight();//初始化光线
+
+      setWindown();//窗体的设置
+      setEventsMouse();//定义鼠标事件
+      setKeyEvents();//定义键盘按键事件       
+      setOrbitControl();//设置Orbit控制    
+      setMesh();//定义场景中的物体
+    }
+
+    //*************************************************
+    //初始化场景
+    function initScene() {
+      g_scene = new THREE.Scene();//创建场景
+
+      let axisHelper = new THREE.AxesHelper(250);
+      g_scene.add(axisHelper);
+    }
+
+    //初始化相机
+    function initCamera() {
+      let k = window.innerWidth / window.innerHeight; //窗口宽高比
+      let s = 150; 
+      
+      // g_camera = new THREE.OrthographicCamera(-s * k, s * k, s, -s, 1, 1000);
+      g_camera = new THREE.PerspectiveCamera(60, k, 1, 1000);
+      g_camera.position.set(200, 300, 200); //设置相机位置
+      g_camera.lookAt(g_scene.position); //设置相机方向(指向的场景对象)
+    }
+
+    //初始化渲染器
+    function initRenender() {
+      //创建渲染器
+      g_renderer = new THREE.WebGLRenderer();
+      g_renderer.setSize(window.innerWidth, window.innerHeight);
+      g_renderer.setClearColor(0xb9d3ff, 1); //设置背景颜色
+      document.body.appendChild(g_renderer.domElement); //body元素中插入canvas对象, 渲染到浏览器
+    }
+
+    //初始化光源
+    function initLight() {
+      //点光源
+      let light_point = new THREE.PointLight(0xffffff);
+      light_point.position.set(400, 200, 300); //点光源位置
+      g_scene.add(light_point); //点光源添加到场景中
+      //环境光
+      let ambient = new THREE.AmbientLight(0x444444);
+      g_scene.add(ambient);
+      //聚光灯
+      // let light_spot = new THREE.SpotLight(0x00ffff);
+      // light_spot.position.set(-20, 80, -100); //点光源位置
+      // light_spot.angle = 0.5;
+      // g_scene.add(light_spot); //点光源添加到场景中
+
+      // let spotLightHelper = new THREE.SpotLightHelper( light_spot );
+      // g_scene.add( spotLightHelper );
+    }
+
+    //*************************************************
+    //响应resize消息，设置窗口尺寸并重设相机投影参数
+    function setWindown() {
+      //加入事件监听器,窗口自适应
+      window.addEventListener('resize', function () {
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        g_renderer.setSize(width, height);
+        g_camera.aspect = width / height;
+        g_camera.updateProjectionMatrix();
+      });
+    }
+
+    //定义鼠标事件
+    function setEventsMouse() {
+      //点击了鼠标左键
+      window.addEventListener('click', function (e) {
+        if (e.button === 0) {
+          console.log("点击了鼠标左键");
+        }
+      });
+
+      //点击了鼠标右键
+      window.addEventListener('contextmenu', function (e) {
+        if (e.button === 2) {
+          console.log("点击了鼠标右键");
+        }
+      });
+
+      //鼠标移动坐标2D坐标
+      window.addEventListener('mousemove', function (e) {
+        // console.log('x:' + e.x);
+        // console.log('y:' + e.y);
+      });
+
+    }
+
+    //定义键盘按键事件
+    function setKeyEvents() {
+      window.addEventListener('keydown', function (e) {
+        console.log(e);
+      });
+    }
+
+    //定义控制
+    function setOrbitControl() {
+      //轨道控制 镜头的移动
+      g_controls = new THREE.OrbitControls(g_camera, g_renderer.domElement);
+    }
+
+    //定义场景中的网格物体
+    function setMesh() {
+      g_geometry = new THREE.PlaneGeometry(300, 300, row, col);
+      g_material = new THREE.MeshPhongMaterial({
+        //  color: 0xff00ff, //三角面颜色
+        side: THREE.DoubleSide, //两面可见
+        vertexColors: THREE.VertexColors, //以顶点颜色为准
+      //  reflectivity: 0.0,
+        specular:0x444444,
+        shininess:100,
+        // wireframe: true
+      });
+
+      // var circleGeometry=new 
+      g_CircleGeometry=new THREE.SphereBufferGeometry(10,20,20);
+      g_CircleMaterial=new THREE.MeshBasicMaterial( { color: 0xffff00 });
+      g_CircleMesh=new THREE.Mesh(g_CircleGeometry,g_CircleMaterial);
+      g_scene.add(g_CircleMesh);
+      g_CircleMesh.translateX(-150);
+      g_CircleMesh.translateZ(30);
+      
+      g_BoxGeometry=new THREE.BoxGeometry( 20, 10, 10 );
+      g_BoxMaterial= new THREE.MeshBasicMaterial( {color: 0x00ff00} );
+      g_BoxMesh=new THREE.Mesh(g_BoxGeometry,g_BoxMaterial);
+      g_scene.add(g_BoxMesh);
+      g_BoxMesh.rotateY(Math.PI*1/360*87);
+      var mesh = new THREE.Mesh(g_geometry, g_material); //网格模型
+      
+      g_scene.add(mesh); //点对象添加到场景中
+      g_geometry.rotateX(-90 * toRad);
+      
+      // mesh.rotateX(-90 * toRad);   //这个没有改变几何，所以不行
+      setWaveColor();
+      // setWaveNormal();
+      console.log(g_geometry);
+
+    }
+
+    function setWaveColor()
+    {
+      let vNum = g_geometry.attributes.position.count;
+      let colors = new Float32Array(vNum*3*4);  //长度是字节数
+      g_geometry.attributes.color = new THREE.BufferAttribute(colors, 3);
+      
+      let col = new THREE.Color(0x00ffff);
+      for(let i=0; i<vNum; i+=1)
+      {        
+        // col.r += i/255;
+        // col.g += i/255;
+        // col.b +=i/255;
+        // col.r = Math.random();  //这是javascript中提供的随机函数；
+        col.r = THREE.Math.randFloat(0, 1); //这是Three.js中提供的。
+        g_geometry.attributes.color.setXYZ(i, col.r, col.g, col.b);
+      }
+    }
+
+    // function wave(amplitude:Float, frequency:Float, phase:Float, time: Float, dir:Vector2)
+    function wave(amplitude, frequency, phase, time, dir)
+    {
+      for (var i = 0; i <= row+1; i++) {
+          for (var j = 0; j <= col; j++) {
+            var waterHight = amplitude * Math.sin((dir.x*i+dir.y*j)*frequency + time*phase)*Math.cos(i*col*0.6+j*0.6);
+            // if(i==6&&j==6)
+            g_geometry.attributes.position.setY(i*col+j,waterHight);
+            // g_BoxMesh.rotation.y=Math.PI*i*j;
+            // if(i==5&&j==5)
+          // {
+          //   g_CircleGeometry.attributes.position.setY(i*col+j,waterHight);
+          // }  
+          } 
+      }
+      // var waterHight1= amplitude*Math.sin((dir.x*6+dir.y*6)*frequency + time*phase)*Math.cos(6*col*0.6+6*0.6);
+      // g_CircleMesh.position.y=waterHight1+9;
+      // var waterHight2= amplitude*Math.sin((dir.x*5+dir.y*10)*frequency + time*phase)*Math.cos(5*col*0.6+10*0.6);
+      // g_BoxMesh.position.y=waterHight2+5;
+      // g_BoxMesh.rotateX(Math.PI*0.005);
+      // g_BoxMesh.rotateX=10;
+      // g_CircleGeometry.attributes.position.setY(6*6+6,waterHight1);
+      // g_CircleGeometry.attributes.position.needsUpdate=true;
+      g_geometry.attributes.position.needsUpdate = true;
+    }
+   
+    function setWaveNormal()
+    {
+      let vNum = g_geometry.attributes.position.count;
+      let normals = new Float32Array(vNum*3*4);  //长度是字节数
+      g_geometry.attributes.normal = new THREE.BufferAttribute(normals, 3);
+      
+      // let normal_BufferAttribute = g_geometry.attributes.normal;      
+      // for(let i=0; i<vNum; i+=1)
+      // {        
+      //   normal_BufferAttribute.setXYZ(i, 0, 1, 0);
+      // }
+      g_geometry.computeVertexNormals();
+    }
+
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>多种火焰实现方法</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: auto;
+    }
+  </style>
+  <!--引入three.js三维引擎-->
+  <!-- <script src="http://yg.bfuer.com/three.js-R125/build/three.js"></script>
+   <script src="..\OrbitControls.js"></script> -->
+  <!-- <script src="http://yg.bfuer.com/three.js-R125/examples/js/controls/OrbitControls.js"></script>
+  <script src="http://yg.bfuer.com/three.js-R125/examples/js/loaders/TGALoader.js"></script> --> 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r125/three.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.125.2/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+  <script type="text/javascript">
+    //全局变量，g表示global
+    let g_scene, g_camera, g_renderer, g_controls;
+    let g_waterTexture,g_waterTexture1,g_waterTexture2;
+    let t = 0;
+    let g_fireTextureArray = [];
+    let g_XiaoCaoTextureArray =[];
+    let g_imageFireMaterial, g_imageFireMesh;
+    let g_XiaoCaoMaterial=[];
+    let g_XiaoCaoMesh=[];
+    let g_imageFireFrame = 0;
+    let g_XiaoCaoFrame=0;
+    let g_rainGroup;
+    var row=100, col=9000,row1=100,col1=3000,row2=100,col2=1000;
+    var waterGeometry,waterGeometry1,waterGeometry2;
+    let z=0;
+    var A=0.5;
+    var f =1;
+    var dir1 = new THREE.Vector2(1,1);
+    var dir2 = new THREE.Vector2(1,0);
+    var amplitude =5;
+    var frequency=3.0;
+    var phase = 1.0;
+    var time = 0;
+    var dir = new THREE.Vector3(1,1,1);
+    //***************程序主逻辑********************
+    init();//初始化
+    loop();//循环开始
+
+
+    //循环运行update，render
+    function loop() {
+      requestAnimationFrame(loop);
+      update();
+      render();
+    }
+
+    function update() {
+      wave(row,col,frequency,phase,time+=0.1);
+      setWaveNormal();
+      g_waterTexture.offset.y -=-0.01;
+      var speed=0;
+      g_rainGroup.children.forEach(sprite => {
+        // 雨滴的y坐标每次减2 
+        sprite.position.y -= speed;
+        speed+=0.98;
+        // sprite.position.y -=2;
+        if (sprite.position.y < 0) {
+          // 如果雨滴落到地面，重置y，从新下落
+          sprite.position.y = 400;
+          speed=0;
+        }
+      });  
+
+    }
+
+    //渲染
+    function render() {
+      g_renderer.render(g_scene, g_camera);
+    }
+    
+    //将需要初始化的放在该方法中统一初始化
+    function init() {
+      initScene();//初始化场景   
+      initCamera();//初始化相机
+      initRenender();//初始化渲染器
+      initLight();//初始化光线
+
+      setWindown();//窗体的设置
+      setEventsMouse();//定义鼠标事件
+      setKeyEvents();//定义键盘按键事件       
+      setOrbitControl();//设置Orbit控制    
+      setMesh();//定义场景中的物体
+    }
+
+    //*************************************************
+    //初始化场景
+    function initScene() {
+      g_scene = new THREE.Scene();//创建场景
+
+      let axisHelper = new THREE.AxesHelper(250);
+      g_scene.add(axisHelper);
+    }
+
+    //初始化相机
+    function initCamera() {
+      let k = window.innerWidth / window.innerHeight; //窗口宽高比
+      let s = 150; 
+      
+      // g_camera = new THREE.OrthographicCamera(-s * k, s * k, s, -s, 1, 1000);
+      g_camera = new THREE.PerspectiveCamera(60, k, 1, 3000);
+      g_camera.position.set(400, 600, 400); //设置相机位置
+      g_camera.lookAt(g_scene.position); //设置相机方向(指向的场景对象)
+    }
+
+    //初始化渲染器
+    function initRenender() {
+      //创建渲染器
+      g_renderer = new THREE.WebGLRenderer();
+      g_renderer.setSize(window.innerWidth, window.innerHeight);
+      g_renderer.setClearColor(0xb9d3ff, 1); //设置背景颜色
+      document.body.appendChild(g_renderer.domElement); //body元素中插入canvas对象, 渲染到浏览器
+    }
+
+    //初始化光源
+    function initLight() {
+      //点光源
+      let light_point = new THREE.PointLight(0xffffff);
+      light_point.position.set(400, 200, 300); //点光源位置
+      g_scene.add(light_point); //点光源添加到场景中
+      //环境光
+      let ambient = new THREE.AmbientLight(0x999999);
+      g_scene.add(ambient);
+      //聚光灯
+      // let light_spot = new THREE.SpotLight(0x00ffff);
+      // light_spot.position.set(-20, 80, -100); //点光源位置
+      // light_spot.angle = 0.5;
+      // g_scene.add(light_spot); //点光源添加到场景中
+
+      // let spotLightHelper = new THREE.SpotLightHelper( light_spot );
+      // g_scene.add( spotLightHelper );
+    }
+
+    //*************************************************
+    //响应resize消息，设置窗口尺寸并重设相机投影参数
+    function setWindown() {
+      //加入事件监听器,窗口自适应
+      window.addEventListener('resize', function () {
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        g_renderer.setSize(width, height);
+        g_camera.aspect = width / height;
+        g_camera.updateProjectionMatrix();
+      });
+    }
+
+    //定义鼠标事件
+    function setEventsMouse() {
+      //点击了鼠标左键
+      window.addEventListener('click', function (e) {
+        if (e.button === 0) {
+          console.log("点击了鼠标左键");
+        }
+      });
+
+      //点击了鼠标右键
+      window.addEventListener('contextmenu', function (e) {
+        if (e.button === 2) {
+          console.log("点击了鼠标右键");
+        }
+      });
+
+      //鼠标移动坐标2D坐标
+      window.addEventListener('mousemove', function (e) {
+        // console.log('x:' + e.x);
+        // console.log('y:' + e.y);
+      });
+
+    }
+
+    //定义键盘按键事件
+    function setKeyEvents() {
+      window.addEventListener('keydown', function (e) {
+        console.log(e);
+      });
+    }
+
+    //定义控制
+    function setOrbitControl() {
+      //轨道控制 镜头的移动
+      g_controls = new THREE.OrbitControls(g_camera, g_renderer.domElement);
+    }
+
+    //定义场景中的网格物体
+    function setMesh() {
+      var groundGeometry = new THREE.PlaneBufferGeometry(1000, 1000, 1, 1);
+      // 加载树纹理贴图
+      var grassTexture = new THREE.TextureLoader().load("images/grass.jpg");      
+      grassTexture.wrapS = THREE.RepeatWrapping;
+      grassTexture.wrapT = THREE.RepeatWrapping;      
+      grassTexture.repeat.set(10, 10); // uv两个方向纹理重复数量
+      var groundMaterial = new THREE.MeshLambertMaterial({
+        map: grassTexture,
+        depthTest: false,
+      });
+      var groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+      g_scene.add(groundMesh);
+      groundMesh.rotateX(-Math.PI / 2);
+
+      //****************瀑布************************************
+      //加一座山就完了！
+      var mountainGeometry= new THREE.BoxBufferGeometry(200,300,100);
+      var mountainTexture= new THREE.TextureLoader().load('images/mountain.jpg');
+      mountainTexture.repeat.wrapS=THREE.RepeatWrapping;
+      mountainTexture.repeat.wrapT=THREE.RepeatWrapping;
+      mountainTexture.repeat.set(1, 1);
+      var mountainMaterial=new THREE.MeshBasicMaterial({
+        map: mountainTexture, // 设置纹理贴图
+        side: THREE.DoubleSide,
+        // depthTest:false
+      });
+      var mountainMesh= new THREE.Mesh(mountainGeometry,mountainMaterial);
+      g_scene.add(mountainMesh);
+      mountainMesh.translateX(-100);
+      mountainMesh.translateY(150);
+      mountainMesh.translateZ(-450);
+
+      //****************流水************************************
+      waterGeometry = new THREE.PlaneBufferGeometry(100, 900, row, col);
+      // 加载树纹理贴图
+      g_waterTexture = new THREE.TextureLoader().load("images/water.png");      
+      g_waterTexture.wrapS = THREE.RepeatWrapping;
+      g_waterTexture.wrapT = THREE.RepeatWrapping;      
+      g_waterTexture.repeat.set(1, 10); // uv两个方向纹理重复数量
+      var waterMaterial = new THREE.MeshLambertMaterial({
+        map: g_waterTexture,
+        // depthTest: false, //如果不设这个的话是有问题的。
+        transparent:true,
+        opacity:0.6,
+        // wireframe: true
+      });
+      var waterMesh = new THREE.Mesh(waterGeometry, waterMaterial);
+      g_scene.add(waterMesh);
+      waterGeometry.rotateX(-Math.PI / 2);
+      waterMesh.translateX(-100);
+      waterMesh.translateZ(50);
+      // waterMesh.translateY(100);
+      // waterMesh.translateZ(5);
+      
+      waterGeometry1= new THREE.PlaneBufferGeometry(100, 300, row1, col1);
+      // 加载树纹理贴图
+      g_waterTexture1 = new THREE.TextureLoader().load("images/water.png");      
+      g_waterTexture1.wrapS = THREE.RepeatWrapping;
+      g_waterTexture1.wrapT = THREE.RepeatWrapping;      
+      g_waterTexture1.repeat.set(1, 2); // uv两个方向纹理重复数量
+      var waterMaterial1 = new THREE.MeshLambertMaterial({
+        map: g_waterTexture,
+        depthTest: false, //如果不设这个的话是有问题的。
+        transparent:true,
+        opacity:0.6,
+        // wireframe: true
+      });
+      var waterMesh1 = new THREE.Mesh(waterGeometry1, waterMaterial1);
+      g_scene.add(waterMesh1);
+      // waterGeometry1.rotateZ(-Math.PI / 2);
+      waterMesh1.translateX(-100);
+      waterMesh1.translateY(150);
+      waterMesh1.translateZ(-400);
+
+      waterGeometry2= new THREE.PlaneBufferGeometry(100, 100, row1, col1);
+      // 加载树纹理贴图
+      g_waterTexture2 = new THREE.TextureLoader().load("images/water.png");      
+      g_waterTexture2.wrapS = THREE.RepeatWrapping;
+      g_waterTexture2.wrapT = THREE.RepeatWrapping;      
+      g_waterTexture2.repeat.set(1, 1); // uv两个方向纹理重复数量
+      var waterMaterial2 = new THREE.MeshLambertMaterial({
+        map: g_waterTexture,
+        depthTest: false, //如果不设这个的话是有问题的。
+        transparent:true,
+        opacity:0.6,
+        // wireframe: true
+      });
+      var waterMesh2 = new THREE.Mesh(waterGeometry2, waterMaterial2);
+      g_scene.add(waterMesh2);
+      waterGeometry2.rotateX(-Math.PI / 2);
+      waterMesh2.translateX(-100);
+      waterMesh2.translateY(300);
+      waterMesh2.translateZ(-450);
+      //*****************树木***********************************
+      var treeTexture = new THREE.TextureLoader().load("images/tree.png");
+      // 批量创建表示一个树的精灵模型
+      for (let i = 0; i < 100; i++) {
+        var spriteMaterial = new THREE.SpriteMaterial({
+          map:treeTexture,//设置精灵纹理贴图
+          depthTest: true,
+          // rotation:Math.PI/4,//旋转精灵对象45度，弧度值
+          // sizeAttenuation: false,
+          // transparent: ture,  //精灵材质也没有这一项
+        });
+        // 创建精灵模型对象
+        var k1 = Math.random() - 0.5;
+        var k2 = Math.random() - 0.5;
+        var sprite = new THREE.Sprite(spriteMaterial);
+        if(k1>=1/10||k1<=-0.25)
+            g_scene.add(sprite);
+        // 控制精灵大小,
+        sprite.scale.set(100, 100, 1); //// 只需要设置x、y两个分量就可以
+        
+        // 设置精灵模型位置，在xoz平面上随机分布
+        //在这里放上一个if条件语句之后，50那个平移量就没有了，而且只有第一个没有平移量！
+            sprite.position.set(900 * k1, 50, 900 * k2)
+            // sprite.position.set(-900+Math.random()*900,50,-900+Math.random()*900);
+      }
+
+      //*****************天空盒*******************************
+      var loader = new THREE.CubeTextureLoader();
+      // 所有贴图在同一目录下，可以使用该方法设置共用路径
+      loader.setPath('images/skyBoxMap/');
+      // 立方体纹理加载器返回立方体纹理对象CubeTexture
+      var CubeTexture = loader.load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
+      g_scene.background = CubeTexture;
+      
+      //****************用图像序列来实现火焰效果***************************
+      constructImageFire(80, 150, 130);
+      setInterval("imageFire()", 150);
+      // window.setInterval("imageFire()", 150);
+      //******************下雨***************************************// 加载雨滴纹理贴图
+      var rainTexture = new THREE.TextureLoader().load("images/rain.png");
+      // 创建一个组表示所有的雨滴
+      g_rainGroup = new THREE.Group();
+      // 批量创建表示雨滴的精灵模型
+      //雨点个数是2000！
+      //问题是如何让下落不是均匀的？
+      for (let i = 0; i < 2000; i++) {
+        var spriteMaterial = new THREE.SpriteMaterial({
+          map: rainTexture, //设置精灵纹理贴图
+        });
+        // 创建精灵模型对象
+        var rainSprite = new THREE.Sprite(spriteMaterial);
+        g_rainGroup.add(rainSprite);
+        // 控制精灵大小,
+        rainSprite.scale.set(1, 10, 1); // 只需要设置x、y两个分量就可以
+        var k1 = Math.random() - 0.5;
+        var k2 = Math.random() - 0.5;
+        // 设置精灵模型位置，在空间中随机分布
+        rainSprite.position.set(1000 * k1, 300*Math.random(), 1000 * k2)
+      }
+      g_scene.add(g_rainGroup);
+    
+    //******************小草***************************************// 加载雨滴纹理贴图
+      // var XiaoCaoGeometry =new THREE.PlaneGeometry(30, 30, 1, 1);
+      // var XiaoCaoTexture = new THREE.TextureLoader().load('images/小草6.png'); // 纹理加载器
+      // // uv两个方向纹理重复数量
+      // var XiaoCaoMaterial = new THREE.MeshBasicMaterial({
+      //   map: XiaoCaoTexture, // 设置纹理贴图
+      //   side: THREE.DoubleSide,
+      //   transparent:true//不加这个贴图会有背景！
+      // });
+      // var XiaoCaoMesh=new THREE.Mesh(XiaoCaoGeometry,XiaoCaoMaterial);
+      // g_scene.add(XiaoCaoMesh);
+      
+      // var xiaocaoTexture = new THREE.TextureLoader().load("images/小草6.png");
+      // // 批量创建表示一个小草的精灵模型
+      // for (let i = 0; i < 20; i++) {
+      //   var xiaocaoMaterial = new THREE.SpriteMaterial({
+      //     map:xiaocaoTexture,//设置精灵纹理贴图
+      //     depthTest: true,
+      //     // rotation:Math.PI/4,//旋转精灵对象45度，弧度值
+      //     // sizeAttenuation: false,
+      //     // transparent: ture,  //精灵材质也没有这一项
+      //   });
+      //   // 创建精灵模型对象
+      //   // var k1 = Math.random() - 0.5;
+      //   // var k2 = Math.random() - 0.5;
+      //   var xiaocaosprite = new THREE.Sprite(xiaocaoMaterial);
+      //   // if(k1>=1/10||k1<=-1/5)
+      //       g_scene.add(xiaocaosprite);
+      //   // 控制精灵大小,
+      //   xiaocaosprite.scale.set(50, 50, 1); //// 只需要设置x、y两个分量就可以
+        
+      //   // 设置精灵模型位置，在xoz平面上随机分布
+      //   //在这里放上一个if条件语句之后，50那个平移量就没有了，而且只有第一个没有平移量！
+      //   // if(i<10)
+      //     xiaocaosprite.position.set(-20, 0, -400+40*i);
+      //   // else
+      //   //   xiaocaosprite.position.set(100, 0, -400+40*(i-10));
+      //       // sprite.position.set(-900+Math.random()*900,50,-900+Math.random()*900);
+      // }
+      constructImageXiaoCao(0, 20, 100);
+      setInterval("XiaoCao0()", 400);
+      setInterval("XiaoCao1()", 400);
+      setInterval("XiaoCao2()", 400);
+      // constructImageXiaoCao(0, 20, 150);
+     
+      // constructImageXiaoCao(0, 20, 200);
+      
+    }
+      
+     
+    function constructImageXiaoCao(x, y, z)
+    {
+      for(let j=0; j<3;j++)
+      {
+      var XiaoCaoGeometry = new THREE.PlaneGeometry(50, 50, 1, 1);
+      // 加载小草纹理贴图
+      var path = 'images/xiaocao/';
+      var format = '.png';      
+      for (var i = 2; i <=5; i++) {
+          g_XiaoCaoTextureArray.push(new THREE.TextureLoader().load(path + i + format));
+      }
+
+      g_XiaoCaoMaterial[j] = new THREE.MeshLambertMaterial({
+        map: g_XiaoCaoTextureArray[0],
+        side: THREE.DoubleSide,
+        transparent: true,
+        emissive: 0xff8800,
+        emissiveIntensity: 0.5
+      });
+      g_XiaoCaoMesh[j] = new THREE.Mesh(XiaoCaoGeometry, g_XiaoCaoMaterial[j]);      
+      g_XiaoCaoMesh[j].position.set(x, y, z+100*j);
+      g_XiaoCaoMesh[j].rotateY(-Math.PI*0.5);
+      g_scene.add(g_XiaoCaoMesh[j]);
+      // XiaoCao(j);
+      }
+      
+    }
+    function XiaoCao0() {
+      // for(let j=0;j<10;j++)
+      // {
+        g_XiaoCaoMaterial[0].map = g_XiaoCaoTextureArray[g_XiaoCaoFrame];
+      if (g_XiaoCaoFrame == 4) 
+        g_XiaoCaoFrame = 0;
+      else 
+        g_XiaoCaoFrame++;
+      // }
+    }
+    function XiaoCao1() {
+      // for(let j=0;j<10;j++)
+      // {
+        g_XiaoCaoMaterial[1].map = g_XiaoCaoTextureArray[g_XiaoCaoFrame];
+      if (g_XiaoCaoFrame == 4) 
+        g_XiaoCaoFrame = 0;
+      else 
+        g_XiaoCaoFrame++;
+      // }
+    }
+    function XiaoCao2() {
+      // for(let j=0;j<10;j++)
+      // {
+        g_XiaoCaoMaterial[2].map = g_XiaoCaoTextureArray[g_XiaoCaoFrame];
+      if (g_XiaoCaoFrame == 4) 
+        g_XiaoCaoFrame = 0;
+      else 
+        g_XiaoCaoFrame++;
+      // }
+    }
+
+
+    function constructImageFire(x, y, z)
+    {
+      var fireGeometry = new THREE.PlaneGeometry(100, 100, 1, 1);
+      // 加载火纹理贴图
+      var path = 'images/fire01/'
+      var format = '.png'      
+      for (var i = 1; i < 22; i++) {
+          g_fireTextureArray.push(new THREE.TextureLoader().load(path + i + format));
+      }
+
+        g_imageFireMaterial = new THREE.MeshLambertMaterial({
+        map: g_fireTextureArray[0],
+        side: THREE.DoubleSide,
+        transparent: true,
+        emissive: 0xff8800,
+        emissiveIntensity: 0.5
+      });
+      
+      g_imageFireMesh = new THREE.Mesh(fireGeometry, g_imageFireMaterial);      
+      g_imageFireMesh.position.set(x, y, z);
+      g_scene.add(g_imageFireMesh);
+    }
+
+    function imageFire() {
+      g_imageFireMaterial.map = g_fireTextureArray[g_imageFireFrame];
+      if (g_imageFireFrame == 20) 
+        g_imageFireFrame = 0;
+      else 
+        g_imageFireFrame++;
+    }
+    function wave(row,col,frequency,phase,time)
+    {
+      for (var i = 0; i <= row; i++) {
+          for (var j = 0; j <= col; j++) {
+          // var height = A*Math.sin((dir1.x*i+dir1.y*j)*f+time);
+          //   height += A*Math.sin((dir2.x*i+dir2.y*j)*f+time); 
+          var height=amplitude * Math.sin( i* frequency/row - time + phase) * Math.cos(j * frequency/col - time + phase);
+            // var waterheight= amplitude * Math.cos((dir.x*i+dir.y*j)*frequency + time*phase); 
+            waterGeometry.attributes.position.setY(i*col+j,height);
+            // waterGeometry.attributes.position.setZ(i*col+j,waterheight);
+          } 
+      }
+      // g_waterTexture.repeat.set(1,10);
+      // waterGeometry.attributes.position.needsUpdate = true;
+      // waterGeometry.verticesNeedUpdate=true;
+      // waterGeometry.computeVertexNormals(true);
+    }
+    function setWaveNormal()
+    {
+      let vNum = waterGeometry.attributes.position.count;
+      let normals = new Float32Array(vNum*3*4);  //长度是字节数
+      waterGeometry.attributes.normal = new THREE.BufferAttribute(normals, 3);
+      //这块是用于计算法向的！
+      let normal_BufferAttribute = waterGeometry.attributes.normal;      
+      for(let i=0; i<vNum; i+=1)
+      {        
+        normal_BufferAttribute.setXYZ(i, 0, 1, 0);
+      }
+      waterGeometry.computeVertexNormals();
+    }
+
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>实验二</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: auto;
+    }
+  </style>
+  <!--引入three.js三维引擎-->
+  <script src="http://yg.bfuer.com/three.js-R125/build/three.js"></script>
+  <!-- <script src="..\OrbitControls.js"></script> -->
+  <script src="http://yg.bfuer.com/three.js-R125/examples/js/controls/OrbitControls.js"></script>
+</head>
+
+<body>
+  <script type="text/javascript">
+    //全局变量，g表示global
+    let g_scene, g_camera, g_renderer, g_controls;
+    let sunMesh, earthMesh, moonMesh,MarsMesh,MercuryMesh;
+    let sunGroup, earthParentGroup, earthGroup, moonGroup,MarsGroup,MercuryGroup;
+    let T0 = new Date();//上次时间
+
+    //***************程序主逻辑********************
+    init();//初始化
+    loop();//循环开始
+
+
+    //循环运行update，render
+    function loop() {
+      requestAnimationFrame(loop);
+      update();
+      render();
+    }
+
+    function update() {
+        
+      let T1 = new Date();//本次时间
+      let t = (T1-T0) / 1000;//时间差
+      T0 = T1;//把本次时间赋值给上次时间
+      // console.log(T0);
+      revolution(t);
+      selfRotation(t);
+      
+    }
+
+    //渲染
+    function render() {
+      g_renderer.render(g_scene, g_camera);
+    }
+    
+    //将需要初始化的放在该方法中统一初始化
+    function init() {
+      initScene();//初始化场景   
+      initCamera();//初始化相机
+      initRenender();//初始化渲染器
+      initLight();//初始化光线
+
+      setWindown();//窗体的设置
+      setEventsMouse();//定义鼠标事件
+      setKeyEvents();//定义键盘按键事件       
+      setOrbitControl();//设置Orbit控制    
+      setMesh();//定义场景中的物体
+    }
+
+    //*************************************************
+    //初始化场景
+    function initScene() {
+      g_scene = new THREE.Scene();//创建场景
+
+      // let axisHelper = new THREE.AxesHelper(250);
+      // g_scene.add(axisHelper);
+    }
+
+    //初始化相机
+    function initCamera() {
+      let k = window.innerWidth / window.innerHeight; //窗口宽高比
+      let s = 150; 
+      
+      // g_camera = new THREE.OrthographicCamera(-s * k, s * k, s, -s, 1, 1000);
+      g_camera = new THREE.PerspectiveCamera(60, k, 1, 3000);
+      g_camera.position.set(200, 300, 200); //设置相机位置
+      g_camera.lookAt(g_scene.position); //设置相机方向(指向的场景对象)
+    }
+
+    //初始化渲染器
+    function initRenender() {
+      //创建渲染器
+      g_renderer = new THREE.WebGLRenderer();
+      g_renderer.setSize(window.innerWidth, window.innerHeight);
+      g_renderer.setClearColor(0x000000, 1); //设置背景颜色
+      document.body.appendChild(g_renderer.domElement); //body元素中插入canvas对象, 渲染到浏览器
+    }
+
+    //初始化光源
+    function initLight() {
+      //点光源
+      let light_point = new THREE.PointLight(0xffffff);
+      light_point.position.set(400, 200, 300); //点光源位置
+      g_scene.add(light_point); //点光源添加到场景中
+      //环境光
+      let ambient = new THREE.AmbientLight(0x444444);
+      g_scene.add(ambient);
+      //聚光灯
+      // let light_spot = new THREE.SpotLight(0x00ffff);
+      // light_spot.position.set(-20, 80, -100); //点光源位置
+      // light_spot.angle = 0.5;
+      // g_scene.add(light_spot); //点光源添加到场景中
+
+      // let spotLightHelper = new THREE.SpotLightHelper( light_spot );
+      // g_scene.add( spotLightHelper );
+    }
+
+    //*************************************************
+    //响应resize消息，设置窗口尺寸并重设相机投影参数
+    function setWindown() {
+      //加入事件监听器,窗口自适应
+      window.addEventListener('resize', function () {
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        g_renderer.setSize(width, height);
+        g_camera.aspect = width / height;
+        g_camera.updateProjectionMatrix();
+      });
+    }
+
+    //定义鼠标事件
+    function setEventsMouse() {
+      //点击了鼠标左键
+      window.addEventListener('click', function (e) {
+        if (e.button === 0) {
+          console.log("点击了鼠标左键");
+        }
+      });
+
+      //点击了鼠标右键
+      window.addEventListener('contextmenu', function (e) {
+        if (e.button === 2) {
+          console.log("点击了鼠标右键");
+        }
+      });
+
+      //鼠标移动坐标2D坐标
+      window.addEventListener('mousemove', function (e) {
+        // console.log('x:' + e.x);
+        // console.log('y:' + e.y);
+      });
+
+    }
+
+    //定义键盘按键事件
+    function setKeyEvents() {
+      window.addEventListener('keydown', function (e) {
+        console.log(e);
+      });
+    }
+
+    //定义控制
+    function setOrbitControl() {
+      //轨道控制 镜头的移动
+      g_controls = new THREE.OrbitControls(g_camera, g_renderer.domElement);
+    }
+
+    //定义场景中的网格物体
+    function setMesh() {
+      //------创建太阳系的mesh-----------------
+    //太阳
+      var sunGeometry = new THREE.SphereGeometry(150, 60, 60);
+      var Suntexture = new THREE.TextureLoader().load('Sun1.jpg'); // 纹理加载器
+      Suntexture.wrapS = THREE.RepeatWrapping;
+      Suntexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Suntexture.repeat.set(1, 1);
+      var sunMaterial = new THREE.MeshBasicMaterial({
+        map: Suntexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      sunMesh = new THREE.Mesh(sunGeometry, sunMaterial);
+      
+    //地球
+      var earthGeometry = new THREE.SphereBufferGeometry(30, 10, 10); 
+      var earthtexture = new THREE.TextureLoader().load('earth.jpg'); // 纹理加载器
+      earthtexture.wrapS = THREE.RepeatWrapping;
+      earthtexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      earthtexture.repeat.set(1, 1);
+      var earthMaterial = new THREE.MeshBasicMaterial({
+        map: earthtexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      earthMesh = new THREE.Mesh(earthGeometry, earthMaterial);  
+     
+    //月球
+      var moonGeometry = new THREE.SphereBufferGeometry(10, 10, 10); 
+      var moontexture = new THREE.TextureLoader().load('moon.jpg'); // 纹理加载器
+      moontexture.wrapS = THREE.RepeatWrapping;
+      moontexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      moontexture.repeat.set(1, 1);
+      var moonMaterial = new THREE.MeshBasicMaterial({
+        map: moontexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+    moonMesh = new THREE.Mesh(moonGeometry, moonMaterial);
+    
+    //火星：  
+      var MarsGeometry = new THREE.SphereBufferGeometry(15, 10, 10); 
+      var Marstexture = new THREE.TextureLoader().load('Mars.jpg'); // 纹理加载器
+      Marstexture.wrapS = THREE.RepeatWrapping;
+      Marstexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Marstexture.repeat.set(1, 1);
+      var MarsMaterial = new THREE.MeshBasicMaterial({
+        map: Marstexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      MarsMesh = new THREE.Mesh(MarsGeometry,MarsMaterial);
+      
+      //火星卫星：火卫一
+      var PhobosGeometry = new THREE.SphereBufferGeometry(10, 20, 20); 
+      var PhobosMaterial = new THREE.MeshPhongMaterial({
+        color: 0x888888,
+        specular:0x444444,
+        shininess:60,
+        // wireframe:true
+      });
+      PhobosMesh = new THREE.Mesh(PhobosGeometry,PhobosMaterial);
+      
+      //水星
+      var MercuryGeometry =new THREE.SphereBufferGeometry(10,20,20);
+      var Mercurytexture = new THREE.TextureLoader().load('Mercury.jpg'); // 纹理加载器
+      Mercurytexture.wrapS = THREE.RepeatWrapping;
+      Mercurytexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Mercurytexture.repeat.set(1, 1);
+      var MercuryMaterial = new THREE.MeshBasicMaterial({
+        map: Mercurytexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      MercuryMesh=new THREE.Mesh(MercuryGeometry,MercuryMaterial);
+      
+      //金星
+      var VenusGeometry =new THREE.SphereBufferGeometry(25,20,10);
+      var Venustexture = new THREE.TextureLoader().load('Venus.png'); // 纹理加载器
+      Venustexture.wrapS = THREE.RepeatWrapping;
+      Venustexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Venustexture.repeat.set(1, 1);
+      var VenusMaterial = new THREE.MeshBasicMaterial({
+        map: Venustexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      VenusMesh=new THREE.Mesh(VenusGeometry,VenusMaterial);
+      
+      //木星
+      var JupiterGeometry =new THREE.SphereBufferGeometry(70,20,20);
+      var Jupitertexture = new THREE.TextureLoader().load('Jupiter.jpg'); // 纹理加载器
+      Jupitertexture.wrapS = THREE.RepeatWrapping;
+      Jupitertexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Jupitertexture.repeat.set(1, 1);
+      var JupiterMaterial = new THREE.MeshBasicMaterial({
+        map: Jupitertexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      JupiterMesh=new THREE.Mesh(JupiterGeometry,JupiterMaterial);
+      
+      //土星
+      var SaturnGeometry =new THREE.SphereBufferGeometry(60,20,20);
+      var Saturntexture = new THREE.TextureLoader().load('Saturn.jpg'); // 纹理加载器
+      Saturntexture.wrapS = THREE.RepeatWrapping;
+      Saturntexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Saturntexture.repeat.set(1, 1);
+      var SaturnMaterial = new THREE.MeshBasicMaterial({
+        map: Saturntexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      SaturnMesh=new THREE.Mesh(SaturnGeometry,SaturnMaterial);
+      //土星环：
+      const SaturnCircleGeometry=new THREE.RingGeometry(70,85,60);
+      const SaturnCircleMaterial = new THREE.MeshBasicMaterial( { color: 0xFFD700, side: THREE.DoubleSide } );     
+      SaturnCircleMesh = new THREE.Mesh(SaturnCircleGeometry, SaturnCircleMaterial );
+        g_scene.add( SaturnCircleMesh );
+       
+      //天王星
+      var  UranusGeometry =new THREE.SphereBufferGeometry(55,20,20);
+      var Uranustexture = new THREE.TextureLoader().load('Uranus.jpg'); // 纹理加载器
+      Uranustexture.wrapS = THREE.RepeatWrapping;
+      Uranustexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Uranustexture.repeat.set(1, 1);
+      var UranusMaterial = new THREE.MeshBasicMaterial({
+        map: Uranustexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      UranusMesh=new THREE.Mesh(UranusGeometry,UranusMaterial);
+      
+      //海王星
+      var  NeptuneGeometry =new THREE.SphereBufferGeometry(50,20,20);
+      var Neptunetexture = new THREE.TextureLoader().load('Neptune.jpg'); // 纹理加载器
+      Neptunetexture.wrapS = THREE.RepeatWrapping;
+      Neptunetexture.wrapT = THREE.RepeatWrapping;
+      // uv两个方向纹理重复数量
+      Neptunetexture.repeat.set(1, 1);
+      var NeptuneMaterial = new THREE.MeshBasicMaterial({
+        map: Neptunetexture, // 设置纹理贴图
+        side: THREE.DoubleSide
+      });
+      NeptuneMesh=new THREE.Mesh(NeptuneGeometry,NeptuneMaterial);
+      
+      //------创建太阳系的轨道-----------------
+      //水星轨道
+      const MercuryRingGeometry=new THREE.RingGeometry(200,205,60);
+      const MercuryRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      MercuryRingMesh = new THREE.Mesh(MercuryRingGeometry, MercuryRingMaterial );
+        g_scene.add( MercuryRingMesh );
+       
+      //金星轨道
+      const VenusRingGeometry=new THREE.RingGeometry(300,305,60);
+      const VenusRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      VenusRingMesh = new THREE.Mesh(VenusRingGeometry, VenusRingMaterial );
+        g_scene.add( VenusRingMesh );
+        
+      //地球轨道
+      const EarthRingGeometry=new THREE.RingGeometry(400,405,60);
+      const EarthRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+        EarthRingMesh = new THREE.Mesh(EarthRingGeometry, EarthRingMaterial );
+        g_scene.add( EarthRingMesh );
+        
+      //火星轨道
+      const MarsRingGeometry=new THREE.RingGeometry(500,505,60);
+      const MarsRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      MarsRingMesh = new THREE.Mesh(MarsRingGeometry, MarsRingMaterial );
+        g_scene.add( MarsRingMesh );
+        
+      //木星轨道
+      const JupiterRingGeometry=new THREE.RingGeometry(650,655,60);
+      const JupiterRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      JupiterRingMesh = new THREE.Mesh(JupiterRingGeometry, JupiterRingMaterial );
+      g_scene.add(JupiterRingMesh); 
+      
+      // //土星轨道
+      const SaturnRingGeometry=new THREE.RingGeometry(800,805,60);
+      const SaturnRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      SaturnRingMesh = new THREE.Mesh(SaturnRingGeometry, SaturnRingMaterial );
+      g_scene.add( SaturnRingMesh );  
+      
+      // //天王星轨道
+      const UranusRingGeometry=new THREE.RingGeometry(950,955,60);
+      const UranusRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      UranusRingMesh = new THREE.Mesh(UranusRingGeometry, UranusRingMaterial );
+      g_scene.add( UranusRingMesh ); 
+      
+      // //海王星轨道
+      const  NeptuneRingGeometry=new THREE.RingGeometry(1100,1105,60);
+      const  NeptuneRingMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );     
+      NeptuneRingMesh = new THREE.Mesh( NeptuneRingGeometry,  NeptuneRingMaterial );
+      g_scene.add(  NeptuneRingMesh );
+      
+      //---------设置层级结构---------------------------
+      //太阳
+      sunGroup = new THREE.Group();
+      //地球
+      earthParentGroup = new THREE.Group();
+      earthGroup = new THREE.Group();
+      //月球
+      moonGroup = new THREE.Group();
+      //火星
+      MarsGroup = new THREE.Group();
+      MarsParentGroup =new THREE.Group();
+      PhobosGroup=new THREE.Group();
+      //水星
+      MercuryGroup=new THREE.Group();
+      MercuryParentGroup=new THREE.Group();
+      //金星
+      VenusGroup=new THREE.Group();
+      VenusParentGroup=new THREE.Group();
+      //木星
+      JupiterGroup=new THREE.Group();
+      JupiterParentGroup=new THREE.Group();
+      //土星
+      SaturnGroup=new THREE.Group();
+      SaturnParentGroup=new THREE.Group();
+      SaturnCircleMGroup=new THREE.Group();
+      //天王星
+      UranusGroup=new THREE.Group();
+      UranusParentGroup=new THREE.Group();
+      //海王星
+      NeptuneGroup=new THREE.Group();
+      NeptuneParentGroup=new THREE.Group();
+      //太阳组加入
+      g_scene.add(sunGroup);
+      sunGroup.add(earthParentGroup);
+      sunGroup.add(MarsParentGroup);
+      sunGroup.add(MercuryParentGroup);
+      sunGroup.add(VenusParentGroup);
+      sunGroup.add(JupiterParentGroup);
+      sunGroup.add(SaturnParentGroup);
+      sunGroup.add(UranusParentGroup);
+      sunGroup.add(NeptuneParentGroup);
+      //地球组
+      earthParentGroup.add(earthGroup);
+      earthGroup.add(moonGroup);
+      //火星组
+      MarsParentGroup.add(MarsGroup);
+      MarsGroup.add(PhobosGroup);
+      //水星组
+      MercuryParentGroup.add(MercuryGroup);
+      //金星组
+      VenusParentGroup.add(VenusGroup);
+      //木星组
+      JupiterParentGroup.add(JupiterGroup);
+      //土星组
+      SaturnParentGroup.add(SaturnGroup);
+      SaturnGroup.add(SaturnCircleMGroup);
+      //天王星组
+      UranusParentGroup.add(UranusGroup);
+      //海王星组
+      NeptuneParentGroup.add(NeptuneGroup);
+  
+      //加实体：
+      sunGroup.add(sunMesh);
+      earthGroup.add(earthMesh); 
+      moonGroup.add(moonMesh);
+      MarsGroup.add(MarsMesh);
+        PhobosGroup.add(PhobosMesh);
+      MercuryGroup.add(MercuryMesh);
+      VenusGroup.add(VenusMesh);
+      JupiterGroup.add(JupiterMesh);
+      SaturnGroup.add(SaturnMesh);
+        SaturnCircleMGroup.add(SaturnCircleMesh);
+      UranusGroup.add(UranusMesh);
+      NeptuneGroup.add(NeptuneMesh);
+        
+        //------设置公转偏移------------------
+      MercuryGroup.translateX(200);
+      VenusGroup.translateX(300);
+      earthGroup.translateX(400);  //地球相对于太阳的偏移
+        moonMesh.translateX(50);    //月球相对于地球的偏移
+      MarsGroup.translateX(500);
+      JupiterGroup.translateX(650);
+      SaturnGroup.translateX(800);
+        PhobosMesh.translateX(40);
+      UranusGroup.translateX(950);
+      NeptuneGroup.translateX(1100);
+      
+      //行星轨道旋转：
+      MercuryRingMesh.rotateX(0.5*Math.PI);
+      VenusRingMesh.rotateX(0.5*Math.PI);
+      EarthRingMesh.rotateX(0.5*Math.PI);
+      MarsRingMesh.rotateX(0.5*Math.PI);
+      JupiterRingMesh.rotateX(0.5*Math.PI);
+      SaturnRingMesh.rotateX(0.5*Math.PI);
+      SaturnCircleMesh.rotateX(0.5*Math.PI);
+      SaturnCircleMesh.rotateX(1/6*Math.PI);
+      UranusRingMesh.rotateX(0.5*Math.PI);
+      NeptuneRingMesh.rotateX(0.5*Math.PI);
+    }
+
+    //地球和月亮的公转
+    function revolution(t){   //乘以t使得转速尽量保持均匀
+        moonGroup.rotation.y += 1.5*t;
+        MercuryParentGroup.rotateY(4*t);
+        VenusParentGroup.rotateY(1.5*t);
+        earthParentGroup.rotateY(1*t);
+        MarsParentGroup.rotateY(0.5*t);
+          PhobosGroup.rotateY(1.2*t);
+        JupiterParentGroup.rotateY(0.085*t);
+        SaturnParentGroup.rotateY(0.033*t);
+        UranusParentGroup.rotateY(0.012*t);
+        NeptuneParentGroup.rotateY(0.006*t);
+    }
+    
+    //自转
+    function selfRotation(t){
+        sunMesh.rotateY(0.5*t);
+        MercuryMesh.rotation.y += 0.017*t;
+        VenusMesh.rotation.y +=-0.004*t;//自东向西转！
+        earthMesh.rotation.y += 1*t;
+          moonMesh.rotation.y += 5.0*t;
+        MarsMesh.rotation.y += 1*t;
+          PhobosMesh.rotation.y += 1.2*t;        
+        JupiterMesh.rotation.y += 2.42*t;
+        SaturnMesh.rotation.y += 2.4*t;
+        UranusMesh.rotation.y +=-1.411*t;
+        NeptuneMesh.rotation.y += 1.5*t;
+    }
+  </script>
+</body>
+
+</html>

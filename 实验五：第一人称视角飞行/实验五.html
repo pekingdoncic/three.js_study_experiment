@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>精灵树林</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: auto;
+    }
+  </style>
+  <!--引入three.js三维引擎-->
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/build/three.js"></script>
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/controls/OrbitControls.js"></script>
+  <!-- 引入threejs扩展库FBXLoader.js加载器 -->
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/loaders/FBXLoader.js"></script>
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/libs/fflate.min.js"></script> 
+  <script src="FirstPersonControls.js"></script>
+  <!-- 漫游控制 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.125.2/examples/js/controls/PointerLockControls.js"></script>
+    <!-- //第一人称视角漫游 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.125.2/examples/js/controls/FirstPersonControls.js"></script>
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/controls/OrbitControls.js"></script>
+  <!-- 引入threejs扩展库STLLoader.js加载器 -->
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/loaders/OBJLoader.js"></script>
+  <!-- 引入obj模型材质加载库MTLLoader.js -->
+  <script src="http://yg-cup.test.upcdn.net/three.js-R125/examples/js/loaders/MTLLoader.js"></script>
+</head>
+
+<body>
+  <script type="text/javascript">
+    //全局变量，g表示global
+    let g_scene, g_camera, g_renderer, g_controls;
+    let g_waterTexture;
+    let g_mixer=null;//声明一个混合器变量    
+    var g_clock;  // 创建一个时钟对象Clock
+    let t = 0;
+    var groundGeometry;
+    var row=100, col=100;
+    var amplitude = 3;
+    var frequency = 0.5;
+    var phase = 1.0;
+    var time = 0;
+    var dir = new THREE.Vector2(1, 1);
+    // var controls = new THREE.FirstPersonControls(g_camera);
+    //***************程序主逻辑********************
+    init();//初始化
+    loop();//循环开始   
+    //循环运行update，render
+    function loop() {
+      requestAnimationFrame(loop);
+      update();
+      render();
+      // updateControls();
+    }
+
+    function update() {
+      if (g_mixer !== null) {
+        //clock.getDelta()方法获得两帧的时间间隔
+        // 更新混合器相关的时间
+        g_mixer.update(g_clock.getDelta());
+      }
+      wave(amplitude, frequency, phase, time, dir);
+      time+=0.1;
+      g_controls.update( g_clock.getDelta());
+    }
+
+    //渲染
+    function render() {
+      g_renderer.render(g_scene, g_camera);
+    }
+    
+    //将需要初始化的放在该方法中统一初始化
+    function init() {
+        g_clock = new THREE.Clock();
+      initScene();//初始化场景   
+      initCamera();//初始化相机
+      initRenender();//初始化渲染器
+      initLight();//初始化光线
+      setWindown();//窗体的设置
+      setEventsMouse();//定义鼠标事件
+      // setKeyEvents();//定义键盘按键事件       
+      setOrbitControl();//设置Orbit控制    
+      setMesh();//定义场景中的物体
+    }
+
+    //*************************************************
+    //初始化场景
+    function initScene() {
+      g_scene = new THREE.Scene();//创建场景
+
+      let axisHelper = new THREE.AxesHelper(250);
+      g_scene.add(axisHelper);
+    }
+
+    //初始化相机
+    function initCamera() {
+      let k = window.innerWidth / window.innerHeight; //窗口宽高比
+      let s = 150; 
+      
+      // g_camera = new THREE.OrthographicCamera(-s * k, s * k, s, -s, 1, 1000);
+      g_camera = new THREE.PerspectiveCamera(60, k, 1, 3000);
+      g_camera.position.set(400, 600, 400); //设置相机位置
+      g_camera.lookAt(g_scene.position); //设置相机方向(指向的场景对象)
+    }
+
+    //初始化渲染器
+    function initRenender() {
+      //创建渲染器
+      g_renderer = new THREE.WebGLRenderer();
+      g_renderer.setSize(window.innerWidth, window.innerHeight);
+      g_renderer.setClearColor(0xb9d3ff, 1); //设置背景颜色
+      document.body.appendChild(g_renderer.domElement); //body元素中插入canvas对象, 渲染到浏览器
+    }
+
+    //初始化光源
+    function initLight() {
+      //点光源
+      let light_point = new THREE.PointLight(0xffffff);
+      light_point.position.set(300, 200, 300); //点光源位置
+      g_scene.add(light_point); //点光源添加到场景中
+      //环境光
+      let ambient = new THREE.AmbientLight(0x999999);
+      g_scene.add(ambient);
+      //聚光灯
+      // let light_spot = new THREE.SpotLight(0x00ffff);
+      // light_spot.position.set(-20, 80, -100); //点光源位置
+      // light_spot.angle = 0.5;
+      // g_scene.add(light_spot); //点光源添加到场景中
+
+      // let spotLightHelper = new THREE.SpotLightHelper( light_spot );
+      // g_scene.add( spotLightHelper );
+    }
+
+    //*************************************************
+    //响应resize消息，设置窗口尺寸并重设相机投影参数
+    function setWindown() {
+      //加入事件监听器,窗口自适应
+      window.addEventListener('resize', function () {
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        g_renderer.setSize(width, height);
+        g_camera.aspect = width / height;
+        g_camera.updateProjectionMatrix();
+        // g_controls.handleResize();
+      });
+    }
+
+    //定义鼠标事件
+    function setEventsMouse() {
+      //点击了鼠标左键
+      window.addEventListener('click', function (e) {
+        if (e.button === 0) {
+          console.log("点击了鼠标左键");
+        }
+      });
+
+      //点击了鼠标右键
+      window.addEventListener('contextmenu', function (e) {
+        if (e.button === 2) {
+          console.log("点击了鼠标右键");
+        }
+      });
+
+      //鼠标移动坐标2D坐标
+      window.addEventListener('mousemove', function (e) {
+        // console.log('x:' + e.x);
+        // console.log('y:' + e.y);
+      });
+
+    }
+
+    //定义键盘按键事件
+    function setKeyEvents() {
+      window.addEventListener('keydown', function (e) {
+        console.log(e);
+      });
+    }
+
+    //定义控制
+    function setOrbitControl() {
+      //轨道控制 镜头的移动
+      // g_controls = new THREE.OrbitControls(g_camera, g_renderer.domElement);
+      //第一人称视角：
+      g_controls = new THREE.FirstPersonControls( g_camera, g_renderer.domElement );
+     g_controls.movementSpeed = 1000;
+      g_controls.lookSpeed = 1;
+    }
+
+    
+    //定义场景中的网格物体
+    function setMesh() {
+    //*****************************水面**************************
+     groundGeometry = new THREE.PlaneBufferGeometry(1000, 1000, row, col);
+      // 加载纹理贴图
+      var loader = new THREE.CubeTextureLoader();
+      // 所有贴图在同一目录下，可以使用该方法设置共用路径
+      loader.setPath('images/skyBoxMap/');
+      // 立方体纹理加载器返回立方体纹理对象CubeTexture
+      var CubeTexture = loader.load(['px.jpg', 'nx.jpg', 'py.jpg', 'ny.jpg', 'pz.jpg', 'nz.jpg']);
+      var grassTexture = new THREE.TextureLoader().load("images/skyBoxMap/px.jpg");      
+      grassTexture.wrapS = THREE.RepeatWrapping;
+      grassTexture.wrapT = THREE.RepeatWrapping;      
+      grassTexture.repeat.set(1, 1); // uv两个方向纹理重复数量
+      //法向贴图（但是不明显）
+        var textureLoader = new THREE.TextureLoader();    
+        var textureNormal = textureLoader.load('images/3_256.jpg');
+        textureNormal.wrapS = THREE.RepeatWrapping;
+        textureNormal.wrapT = THREE.RepeatWrapping;
+        textureNormal.repeat.set(10, 10);
+        var groundMaterial = new THREE.MeshLambertMaterial({
+        // map: grassTexture,
+        envMap:CubeTexture,
+        // normalMap:textureNormal,
+        // color:0x03A89E,
+        side: THREE.DoubleSide,
+        // wireframe:true
+        vertexColors: THREE.VertexColors,
+      });
+    
+      var groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+      g_scene.add(groundMesh);
+      groundMesh.rotateX(-Math.PI / 2);
+      groundMesh.rotateZ(Math.PI / 2);
+      setWaveColor();
+
+      //*****************小船***********************************
+      var boatTexture = new THREE.TextureLoader().load("images/小船1.png");
+      // 批量创建表示一个树的精灵模型
+      for (let i = 0; i < 10; i++) {
+        var spriteMaterial = new THREE.SpriteMaterial({
+          map:boatTexture,//设置精灵纹理贴图
+          depthTest: true,
+          rotation:-Math.PI/6,//旋转精灵对象45度，弧度值
+          // sizeAttenuation: false,
+        //   transparent: true,  //精灵材质也没有这一项
+        });
+        // 创建精灵模型对象
+        var sprite = new THREE.Sprite(spriteMaterial);
+         // 控制精灵大小
+        sprite.scale.set(100, 100, 1); //// 只需要设置x、y两个分量就可以
+        var k1 = (Math.random() - 0.5)*1000;
+        var k2 = (Math.random() - 0.5)*1000;
+        // 设置精灵模型位置，在xoz平面上随机分布
+        if(k1>200)
+        sprite.position.set( k1, 30,  k2)
+        g_scene.add(sprite);
+      }
+
+      //*****************天空盒*******************************
+      g_scene.background = CubeTexture;
+      
+      //***********************导入蝴蝶****************************
+      var Buloader = new THREE.FBXLoader();//创建一个FBX加载器
+      Buloader.load("images/蝴蝶1.fbx", function(obj) 
+      {
+        console.log(obj)
+        // g_scene.add(obj)
+        obj.translateY(300);
+        //缩放：
+        var container = new THREE.Group();
+        container.add(obj);
+        container.scale.set(0.5, 0.5, 0.5); // 设置容器的缩放比例
+        g_scene.add(container);
+    
+        // 创建一个混合器，解析播放obj及其子对象包含的动画数据
+        g_mixer = new THREE.AnimationMixer(obj);
+        console.log(obj.animations)
+        var AnimationAction = g_mixer.clipAction(obj.animations[0]);  //获得剪辑对象clip
+        // AnimationAction.timeScale = 1; //默认1，可以调节播放速度
+        AnimationAction.loop = THREE.LoopRepeat; //循环播放
+        // AnimationAction.clampWhenFinished=true;//暂停在最后一帧播放的状态
+        AnimationAction.play();//播放动画
+      });
+
+      //*******************导入假山*********************
+      var mounOBJLoader = new THREE.OBJLoader();//obj加载器
+      var mounMTLLoader = new THREE.MTLLoader();//材质文件加载器
+      mounMTLLoader.load('images/山.mtl', function(materials) {
+        // 返回一个包含材质的对象MaterialCreator
+        console.log(materials);
+        //obj的模型会和MaterialCreator包含的材质对应起来
+        mounOBJLoader.setMaterials(materials);
+        mounOBJLoader.load('images/山.obj', function(obj) {
+          console.log(obj);
+          obj.scale.set(2.5, 2.5, 2.5); //放大obj组对象
+          g_scene.add(obj);//返回的组对象插入场景中
+          obj.translateY(-50);
+          obj.translateZ(-50);
+        });
+      })
+      //*************************实现岩石的效果：**********************************
+      
+      // const length = 12, width = 8;
+      // const shape = new THREE.Shape();
+      // shape.moveTo( 0,0 );
+      // shape.lineTo( 0, width );
+      // shape.lineTo( length, width );
+      // shape.lineTo( length, 0 );
+      // shape.lineTo( 0, 0 );
+
+      // const extrudeSettings = {
+      //   steps: 1,
+      //   depth: 60,
+      //   bevelEnabled: true,
+      //   bevelThickness: 30,
+      //   bevelSize: 0,
+      //   bevelOffset: 0,
+      //   bevelSegments: 1
+      // };
+
+      var diffuseTexture = textureLoader.load('images/山贴图.jpg');
+      diffuseTexture.wrapS = THREE.RepeatWrapping;
+      diffuseTexture.wrapT = THREE.RepeatWrapping;
+      diffuseTexture.repeat.set(1, 1);
+      var textureNormal = textureLoader.load('images/法向贴图.jpg');
+      textureNormal.wrapS = THREE.RepeatWrapping;
+      textureNormal.wrapT = THREE.RepeatWrapping;
+      textureNormal.repeat.set(1, 1);
+      // var rock_geometry = new THREE.ExtrudeGeometry( shape, extrudeSettings );
+      var rock_geometry= new THREE.BoxGeometry(100,100,100)
+      var rock_material = new THREE.MeshBasicMaterial( { 
+        map:diffuseTexture,
+        normalMap:textureNormal,
+        // wireframe: true
+       } );
+      var rock_mesh = new THREE.Mesh( rock_geometry, rock_material ) ;
+      g_scene.add( rock_mesh );
+      rock_geometry.rotateX(Math.PI/2);
+      rock_mesh.translateX(-450);
+      rock_mesh.translateY(0);
+      rock_mesh.translateZ(-50);
+ //***************实现又一座山******************************
+    var mountaingeometry = new THREE.PlaneGeometry(800, 800); //矩形平面
+      var mountaintextureLoader = new THREE.TextureLoader();
+      var mountaindiffuseTexture = mountaintextureLoader.load('images/山.png');
+      mountaindiffuseTexture.wrapS = THREE.RepeatWrapping;
+      mountaindiffuseTexture.wrapT = THREE.RepeatWrapping;
+      mountaindiffuseTexture.repeat.set(1, 1);
+
+      var mountaintextureNormal = mountaintextureLoader.load('images/山法向贴图.png');
+      mountaintextureNormal.wrapS = THREE.RepeatWrapping;
+      mountaintextureNormal.wrapT = THREE.RepeatWrapping;
+      mountaintextureNormal.repeat.set(1, 1);
+
+      var mountainmaterial = new THREE.MeshPhongMaterial({
+        // color: 0xff0000,
+        map: mountaindiffuseTexture,
+        normalMap: mountaintextureNormal, //法线贴图
+        normalScale: new THREE.Vector2(3, 3),   //设置深浅程度，默认值(1,1)。
+        side: THREE.DoubleSide
+      });
+      var mountainmesh = new THREE.Mesh(mountaingeometry, mountainmaterial); //网格模型对象Mesh
+      g_scene.add(mountainmesh); //网格模型添加到场景中      
+      mountainmesh.translateX(1000);
+      mountaingeometry.rotateX(Math.PI/2);
+    }
+   
+      function wave(amplitude, frequency, phase, time, dir)
+    {
+      for (var i = 0; i <= row; i++) {
+          for (var j = 0; j <= col; j++) {
+            var waterHight = amplitude * Math.sin((dir.x*i+dir.y*j)*frequency + time*phase);
+            groundGeometry.attributes.position.setZ(i*col+j,waterHight); 
+          } 
+      }
+      groundGeometry.attributes.position.needsUpdate = true;
+    }
+    //水波颜色
+    function setWaveColor()
+    {
+      let vNum = groundGeometry.attributes.position.count;
+      let colors = new Float32Array(vNum*3*4);  //长度是字节数
+      groundGeometry.attributes.color = new THREE.BufferAttribute(colors, 3);
+      let col = new THREE.Color(0x00ffff);
+      for(let i=0; i<vNum; i+=1)
+      {        
+        // col.r += i/255;
+        // col.g += i/255;
+        col.r = Math.random();  //这是javascript中提供的随机函数；
+        // col.r = THREE.Math.randFloat(0, 1); //这是Three.js中提供的。
+        groundGeometry.attributes.color.setXYZ(i, col.r, col.g, col.b);
+      }
+    }
+  </script>
+</body>
+
+</html>
